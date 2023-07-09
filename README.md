@@ -7,7 +7,7 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
 ## Method
 
 - [x] Use [G2P](https://github.com/Kyubyong/g2p/) to encode text.
-- [ ] Use [encodec](https://github.com/facebookresearch/encodec) to
+- [x] Use [encodec](https://github.com/facebookresearch/encodec) to
   encode and decode audio.
 - [ ] Combine token space of text and audio codec codes
 
