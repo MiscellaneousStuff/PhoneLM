@@ -32,7 +32,7 @@ by [encodec](https://github.com/facebookresearch/encodec). As the patch size can
 (for 4 codebooks each of which can be 1 of 1024 values), this means the local model of the
 MegaByte model can focus on modelling individual audio codec elements and the global model
 can focus on the larger context. Hopefully this greatly improves audio quality compared to
-VALL-E.
+VALL-E while being much simpler to train.
 
 ## Method
 
