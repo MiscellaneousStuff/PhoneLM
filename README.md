@@ -2,7 +2,7 @@
 
 ## About
 
-Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on Megabyte and VALL-E.
+Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on MegaByte and VALL-E.
 
 ## Background
 
@@ -20,7 +20,7 @@ the complexity of the approach as two models are now required and raises the pos
 that the NAR model can not attend to all past inputs unlike the AR which can reduce
 audio quality output and may lead to repeating of outputs. In practice, the use of phonemes
 as input into VALL-E may alleviate this, however, this approach explores just predicting
-the entire sequence at once.
+the entire sequence auto-regressively (across all codebooks at once).
 
 This is inspired by the fact that the authors of the original [MegaByte](https://arxiv.org/pdf/2305.07185.pdf) paper perform autoregressive audio prediction on raw audio data. They
 treat the audio files as just raw byte sequences and train a model to predict audio on 2TB
