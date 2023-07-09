@@ -4,7 +4,24 @@
 
 Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on MegaByte and VALL-E.
 
-## Background
+## Method
+
+- [ ] Use [G2P](https://github.com/Kyubyong/g2p/) to encode text.
+- [ ] Use [encodec](https://github.com/facebookresearch/encodec) to
+  encode and decode audio.
+- [ ] Combine token space of text and audio codec codes
+
+### LJSpeech
+
+- [ ] Overfit model on one sample from LJ Speech
+
+<!--
+## Datasets
+
+### LJSpeech
+-->
+
+## Inspiration
 
 This model is loosely based on the VALL-E paper by Microsoft. It uses the
 MegaByte inspired model from [Lucidrains](https://github.com/lucidrains/MEGABYTE-pytorch)
@@ -33,20 +50,3 @@ by [encodec](https://github.com/facebookresearch/encodec). As the patch size can
 MegaByte model can focus on modelling individual audio codec elements and the global model
 can focus on the larger context. Hopefully this greatly improves audio quality compared to
 VALL-E while being much simpler to train.
-
-## Method
-
-- [ ] Use [G2P](https://github.com/Kyubyong/g2p/) to encode text.
-- [ ] Use [encodec](https://github.com/facebookresearch/encodec) to
-  encode and decode audio.
-- [ ] Combine token space of text and audio codec codes
-
-### LJSpeech
-
-- [ ] Overfit model on one sample from LJ Speech
-
-<!--
-## Datasets
-
-### LJSpeech
--->
