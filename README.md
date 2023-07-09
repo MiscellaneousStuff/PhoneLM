@@ -2,7 +2,7 @@
 
 ## About
 
-Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on MegaByte and VALL-E.
+Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on MegaByte, VALL-E and Encodec.
 
 ## Method
 
