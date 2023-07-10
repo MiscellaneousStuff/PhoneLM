@@ -9,6 +9,7 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
 - [x] Use [G2P](https://github.com/Kyubyong/g2p/) to encode text.
 - [x] Use [encodec](https://github.com/facebookresearch/encodec) to
   encode and decode audio.
+- [x] Custom LJSpeech dataloader to include phonemes and encodec audio codes
 - [ ] Combine token space of text and audio codec codes
 
 ### LJSpeech
