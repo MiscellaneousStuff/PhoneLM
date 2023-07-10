@@ -21,8 +21,10 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
     Main issues is sequence length.
   - Scaling up sequence length is easier than scaling up codebook size. This is for the
     arrangement of [time1_code_1, time_1_code_2, ...].
-    Perhaps  [time1_code_1, time_2_code_1, ...] might perform better? So synthesize all codebook1
-    then all codebook 2.
+    Perhaps [time1_code_1, time_2_code_1, ...] might perform better? So synthesize all codebook1 then all codebook 2.
+  - Longer duration prompts and audio targets seem to perform worse. Will try experimenting
+    with shorter prompts (try to stick to roughly 3 second audio snippets.)
+
 <!--
 ## Datasets
 

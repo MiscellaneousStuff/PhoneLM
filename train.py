@@ -1,4 +1,3 @@
-
 import megabyte
 import torch
 import torch.nn as nn
@@ -32,7 +31,7 @@ MAX_LR       = 1e-2
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP    = 0.1
 
-BANDWIDTH_IDX = 1 # original VALL-E
+BANDWIDTH_IDX = 0 # original VALL-E
 CODEBOOKS     = [2, 4, 8, 16, 32]
 BANDWIDTHS    = [1.5, 3.0, 6.0, 12.0, 24.0]
 BANDWIDTH     = BANDWIDTHS[BANDWIDTH_IDX]
@@ -174,13 +173,13 @@ if __name__ == "__main__":
         item_audio_tokens,
         n_phone_tokens=len(dataset.phone_dict),
         n_audio_tokens=1024,
-        max_clip_length=2)
+        max_clip_length=5)
 
     optimizer = optim.Adam(
         model.parameters(),
         lr=MAX_LR)
 
-    EPOCHS = 500
+    EPOCHS = 1000
     PRINT_INTERVAL = 100
 
     seq_len = 1024
