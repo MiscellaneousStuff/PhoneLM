@@ -16,7 +16,10 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
 - [x] Overfit model on one sample from LJSpeech
   - [x] Combine token space of text and audio codec codes
   - `LJ016-0073-synth.wav` The initial "Mr. Cope" can just about be made out
-  
+  - Using a codebook of 2 seems to be too aggressive.
+  - `LJ003-0259-synth.wav` "And attracted attention by their". Codebook of 2 is possible.
+    Main issues is sequence length.
+    
 <!--
 ## Datasets
 
@@ -41,7 +44,8 @@ audio quality output and may lead to repeating of outputs. In practice, the use 
 as input into VALL-E may alleviate this, however, this approach explores just predicting
 the entire sequence auto-regressively (across all codebooks at once).
 
-This is inspired by the fact that the authors of the original [MegaByte](https://arxiv.org/pdf/2305.07185.pdf) paper perform autoregressive audio prediction on raw audio data. They
+This is inspired by the fact that the authors of the original [MegaByte](https://arxiv.org/pdf/2305.07185.pdf)
+paper perform autoregressive audio prediction on raw audio data. They
 treat the audio files as just raw byte sequences and train a model to predict audio on 2TB
 worth of audio and find that compared to a vanilla transformer or Perceiver architectures,
 it scores a higher bpb. In principle, this means that the model is more efficient and accurate
