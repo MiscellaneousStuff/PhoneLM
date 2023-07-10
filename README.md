@@ -10,12 +10,13 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
 - [x] Use [encodec](https://github.com/facebookresearch/encodec) to
   encode and decode audio.
 - [x] Custom LJSpeech dataloader to include phonemes and encodec audio codes
-- [ ] Combine token space of text and audio codec codes
 
 ### LJSpeech
 
-- [ ] Overfit model on one sample from LJ Speech
-
+- [x] Overfit model on one sample from LJSpeech
+  - [x] Combine token space of text and audio codec codes
+  - `LJ016-0073-synth.wav` The initial "Mr. Cope" can just about be made out
+  
 <!--
 ## Datasets
 
