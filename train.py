@@ -32,7 +32,7 @@ MAX_LR       = 1e-2
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP    = 0.1
 
-BANDWIDTH_IDX = 0 # original VALL-E
+BANDWIDTH_IDX = 1 # original VALL-E
 CODEBOOKS     = [2, 4, 8, 16, 32]
 BANDWIDTHS    = [1.5, 3.0, 6.0, 12.0, 24.0]
 BANDWIDTH     = BANDWIDTHS[BANDWIDTH_IDX]
@@ -53,7 +53,7 @@ class PhoneLM(nn.Module):
             num_tokens  = n_phone_tokens + n_audio_tokens + 4,
             dim         = (768, 256, 128), # (32, 32, 32), # (768, 256, 128)# Dg, Dl1, Dl2
             depth       = (6, 4, 2), # (6, 4, 2)
-            max_seq_len = (32, 4, 4), # (128, 4, 4), # (32, 4, 4), # 512
+            max_seq_len = (64, 4, 4), # (32, 4, 4), # (128, 4, 4), # (32, 4, 4), # 512
             flash_attn  = False)
 
     def forward(self, x, debug=False, return_loss=True):
@@ -174,8 +174,7 @@ if __name__ == "__main__":
         item_audio_tokens,
         n_phone_tokens=len(dataset.phone_dict),
         n_audio_tokens=1024,
-        max_clip_length=1.5)
-    
+        max_clip_length=2)
 
     optimizer = optim.Adam(
         model.parameters(),
@@ -184,7 +183,7 @@ if __name__ == "__main__":
     EPOCHS = 500
     PRINT_INTERVAL = 100
 
-    seq_len = 512
+    seq_len = 1024
 
     def train(model, trainloader):
         model.train()

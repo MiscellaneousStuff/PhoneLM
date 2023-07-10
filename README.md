@@ -19,7 +19,10 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
   - Using a codebook of 2 seems to be too aggressive.
   - `LJ003-0259-synth.wav` "And attracted attention by their". Codebook of 2 is possible.
     Main issues is sequence length.
-    
+  - Scaling up sequence length is easier than scaling up codebook size. This is for the
+    arrangement of [time1_code_1, time_1_code_2, ...].
+    Perhaps  [time1_code_1, time_2_code_1, ...] might perform better? So synthesize all codebook1
+    then all codebook 2.
 <!--
 ## Datasets
 
