@@ -31,11 +31,13 @@ MAX_LR       = 1e-2
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP    = 0.1
 
-BANDWIDTH_IDX = 0 # original VALL-E
-CODEBOOKS     = [2, 4, 8, 16, 32]
-BANDWIDTHS    = [1.5, 3.0, 6.0, 12.0, 24.0]
-BANDWIDTH     = BANDWIDTHS[BANDWIDTH_IDX]
-CODEBOOK      = CODEBOOKS[BANDWIDTH_IDX]
+BANDWIDTH_IDX     = 0 # original VALL-E
+CODEBOOKS         = [2, 4, 8, 16, 32]
+BANDWIDTHS        = [1.5, 3.0, 6.0, 12.0, 24.0]
+BANDWIDTH         = BANDWIDTHS[BANDWIDTH_IDX]
+CODEBOOK          = CODEBOOKS[BANDWIDTH_IDX]
+MAX_PROMPT_LENGTH = 60
+MAX_CLIP_LENGTH   = 2
 
 def get_reserved_mem_gb():
     device = torch.cuda.current_device()
@@ -77,10 +79,8 @@ def multi_encode(
     Set `max_clip_length` to 0 for original clip length."""
 
     # Start text token, end text token, start audio token, end audio token
-    STT, ETT, SAT, EAT = [n_phone_tokens + n_audio_tokens + i
-                          for i in range(4)]
-    STT = torch.tensor([STT]).long().cuda()
-    ETT = torch.tensor([ETT]).long().cuda()
+    SAT, EAT = [n_phone_tokens + n_audio_tokens + i
+                for i in range(2)]
     SAT = torch.tensor([SAT]).long().cuda()
     EAT = torch.tensor([EAT]).long().cuda()
 
@@ -98,7 +98,8 @@ def multi_encode(
     print("audio_tokens.shape:", audio_tokens.shape)
     
     device = torch.cuda.current_device()
-    phone_tokens = torch.cat((STT, phone_tokens, ETT), dim=0).to(device)
+    phone_tokens = phone_tokens.to(device)
+    # phone_tokens = torch.cat((phone_tokens), dim=0).to(device)
     audio_tokens = torch.cat((SAT, audio_tokens, EAT,), dim=0).to(device)
     combined_tokens = torch.cat((phone_tokens, audio_tokens), dim=0).to(device)
     return phone_tokens, audio_tokens, combined_tokens
@@ -107,15 +108,15 @@ def generate_audio(sample,
                    n_phone_tokens,
                    n_audio_tokens,
                    audio_path="./out.wav"):
-    STT, ETT, SAT, EAT = [n_phone_tokens + n_audio_tokens + i
-                          for i in range(4)]
-    ST_S = [STT, ETT, SAT, EAT]
-    print("STT, ETT, SAT, EAT ids:", ST_S)
+    SAT, EAT = [n_phone_tokens + n_audio_tokens + i
+                for i in range(2)]
+    ST_S = [SAT, EAT]
+    print("SAT, EAT ids:", ST_S)
     seq = sample.cpu().tolist()[0]
     # print("seq:", seq)
     # all special tokens in list
     if all(st_t in seq for st_t in ST_S) and len(seq) >= len(ST_S) + 2:
-        # text_tokens  = seq[seq.index(STT + 1):seq.index(ETT - 1)]
+        # text_tokens  = seq[0:seq.index(SAT)]
         audio_tokens = seq[seq.index(SAT)+1:seq.index(EAT)]
         print(seq.index(SAT), seq.index(EAT), len(audio_tokens))
         audio_tokens = torch.tensor(audio_tokens).cuda()
@@ -142,7 +143,9 @@ def generate(model, prompt):
 
 if __name__ == "__main__":
     dataset = LJSPEECH("./data/LJSpeech",
-                       encodec_bandwidth=BANDWIDTH)
+                       encodec_bandwidth=BANDWIDTH,
+                       max_prompt_length=MAX_PROMPT_LENGTH)
+    print("LJSpeech Dataset Slice:", len(dataset))
 
     indices = list(range(len(dataset)))
     train_indices, test_indices = train_test_split(indices, test_size=0.1, random_state=42)
@@ -173,7 +176,7 @@ if __name__ == "__main__":
         item_audio_tokens,
         n_phone_tokens=len(dataset.phone_dict),
         n_audio_tokens=1024,
-        max_clip_length=5)
+        max_clip_length=MAX_CLIP_LENGTH)
 
     optimizer = optim.Adam(
         model.parameters(),
@@ -215,11 +218,9 @@ if __name__ == "__main__":
     
     # STT, ETT, SAT, EAT ids: [1099, 1100, 1101, 1102]
     values = sample.cpu().numpy()
-    STT_S  = np.where(values == 1099)
-    ETT_S  = np.where(values == 1100)
     SAT_S  = np.where(values == 1101)
     EAT_S  = np.where(values == 1102)
 
-    print("STT_S, ETT_S, SAT_S, EAT_S:", STT_S, ETT_S, SAT_S, EAT_S)
+    print("SAT_S, EAT_S:", SAT_S, EAT_S)
 
     print(out)

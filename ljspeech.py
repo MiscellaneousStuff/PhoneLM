@@ -37,15 +37,21 @@ class LJSPEECH(Dataset):
     def __init__(
         self,
         root: Union[str, Path],
-        encodec_bandwidth=6.0,
-        folder_in_archive: str = _RELEASE_CONFIGS["release1"]["folder_in_archive"]
+        encodec_bandwidth: float = 6.0,
+        folder_in_archive: str   = _RELEASE_CONFIGS["release1"]["folder_in_archive"],
+        max_prompt_length: int   = 60
     ) -> None:
 
-        self._parse_filesystem(root, folder_in_archive)
+        self._parse_filesystem(root, folder_in_archive, max_prompt_length)
         self.encodec_bandwidth = encodec_bandwidth
         self.phone_dict = _get_model().phonemes + ["_"]
 
-    def _parse_filesystem(self, root: str, folder_in_archive: str) -> None:
+    def _parse_filesystem(
+            self,
+            root: str,
+            folder_in_archive: str,
+            max_prompt_length: int) -> None:
+        
         root = Path(root)
 
         basename = os.path.basename(_RELEASE_CONFIGS["release1"]["url"])
@@ -65,6 +71,10 @@ class LJSPEECH(Dataset):
         with open(self._metadata_path, "r", newline="", encoding="utf-8") as metadata:
             flist = csv.reader(metadata, delimiter="|", quoting=csv.QUOTE_NONE)
             self._flist = list(flist)
+            if max_prompt_length:
+                self._flist = [item
+                               for item in self._flist
+                               if len(item[1]) <= max_prompt_length]
 
     def __getitem__(self, n: int) -> Tuple[Tensor, int, str, str]:
         """Load the n-th sample from the dataset.
