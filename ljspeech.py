@@ -71,10 +71,16 @@ class LJSPEECH(Dataset):
         with open(self._metadata_path, "r", newline="", encoding="utf-8") as metadata:
             flist = csv.reader(metadata, delimiter="|", quoting=csv.QUOTE_NONE)
             self._flist = list(flist)
-            if max_prompt_length:
-                self._flist = [item
-                               for item in self._flist
-                               if len(item[1]) <= max_prompt_length]
+            self._flist = [item
+                           for item in self._flist
+                           if len(item[2]) <= max_prompt_length]
+            # if max_prompt_length:
+            #     self._flist = [item
+            #                    for item in self._flist
+            #                    if len(item[1]) <= max_prompt_length]
+            #     for i in range(len(self._flist)):
+            #         item              = self._flist[i][1]
+            #         self._flist[i][1] = " ".join(item.split(" ")[0:max_prompt_length//6])
 
     def __getitem__(self, n: int) -> Tuple[Tensor, int, str, str]:
         """Load the n-th sample from the dataset.
