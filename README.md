@@ -2,6 +2,11 @@
 
 ## About
 
+UPDATE: Generalisation training seems some what promising. Model consistently outputs
+the correct number of audio tokens and can deal with the temporal context somewhat well.
+However, main issue seems to be more with the "spatial" component of predicting the sequence,
+i.e., predicting the correct codebook codes per timestep.
+
 Text to speech using phonemes as inputs and audio codec codes as outputs. Loosely based on MegaByte, VALL-E and Encodec.
 
 ## Method
@@ -24,9 +29,9 @@ Text to speech using phonemes as inputs and audio codec codes as outputs. Loosel
     Perhaps [time1_code_1, time_2_code_1, ...] might perform better? So synthesize all codebook1 then all codebook 2.
   - Longer duration prompts and audio targets seem to perform worse. Will try experimenting
     with shorter prompts (try to stick to roughly 3 second audio snippets.)
-- [ ] Generalise (Using either 1 second prompt + clip, or 1.5 sec prompt and clip)
+- [-] Generalise (Using either 1 second prompt + clip, or 1.5 sec prompt and clip)
    - [x] Get any prompt to audio working (even if unintelligible and using clamping)
-   - [ ] Get any coherent output
+   - [-] Get any coherent output
    
 <!--
 ## Datasets
