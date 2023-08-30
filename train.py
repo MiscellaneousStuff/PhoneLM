@@ -16,6 +16,7 @@ from encodec_util import decode_to_file
 
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.cuda.amp.grad_scaler import GradScaler
 
 import random
 import numpy as np
@@ -41,7 +42,9 @@ CODEBOOK          = CODEBOOKS[BANDWIDTH_IDX]
 MAX_PROMPT_LENGTH = int(30 * 1.5)
 MAX_CLIP_LENGTH   = int(1.5)
 SEQ_LEN           = 512
-BATCH_SIZE        = 64
+BATCH_SIZE        = 96 # 128 # 64
+
+AMP               = True
 
 def get_reserved_mem_gb():
     device = torch.cuda.current_device()
@@ -57,7 +60,7 @@ class PhoneLM(nn.Module):
             dim_head    = 64, # 16,
             num_tokens  = n_phone_tokens + n_audio_tokens + 4,
             dim         = (768, 256, 128), # (32, 32, 32), # (768, 256, 128)# Dg, Dl1, Dl2
-            depth       = (6, 4, 2), # (6, 4, 2)
+            depth       = (12, 4, 2), # (6, 4, 2)
             max_seq_len = (SEQ_LEN // 16, 4, 4), # (32, 4, 4), # (128, 4, 4), # (32, 4, 4), # 512
             flash_attn  = False)
 
@@ -130,6 +133,7 @@ def generate_audio(sample,
             q=CODEBOOK,
             t=audio_tokens.size(0) // CODEBOOK)
         print("audio_tokens.shape:", audio_tokens, audio_tokens.shape)
+        audio_tokens = torch.clamp(audio_tokens, min=0, max=1023)
         decode_to_file(audio_tokens, audio_path)
         return True
     else:
@@ -232,28 +236,38 @@ if __name__ == "__main__":
         model.parameters(),
         lr=MAX_LR)
 
-    EPOCHS = 100 # 100 # 1000
+    scaler = GradScaler()
+
+    EPOCHS = 100 # 200 # 100 # 1000
     PRINT_INTERVAL = 100
 
     def train(model, trainloader):
         model.train()
-        
-        #padding_len = max(0, SEQ_LEN - test_inp.size(0))
-        #n_test_inp = F.pad(test_inp, (0, padding_len))
-        #batch = n_test_inp.unsqueeze(0)
+
         batch = next(iter(trainloader))
-        # print(batch.shape)
-        loss = model(batch, return_loss=True)
-        # loss = model(next(trainloader), return_loss=True)
-        loss.backward()
-        return loss
+
+        with torch.autocast(
+                enabled=AMP,
+                dtype=torch.bfloat16,
+                device_type="cuda"):
+            #padding_len = max(0, SEQ_LEN - test_inp.size(0))
+            #n_test_inp = F.pad(test_inp, (0, padding_len))
+            #batch = n_test_inp.unsqueeze(0)
+            # print(batch.shape)
+            loss = model(batch, return_loss=True)
+            # loss = model(next(trainloader), return_loss=True)
+            # loss.backward()
+            return loss
 
     pbar = tqdm(range(EPOCHS), mininterval=10., desc='training')
     for i in pbar:
         for b in range(len(train_loader)):
             loss = train(model, train_loader)
-            optimizer.step()
-            optimizer.zero_grad()
+            # optimizer.step()
+            # optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
         mem_gb = get_reserved_mem_gb()
         if i % PRINT_INTERVAL == 0:
             print(f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}")
@@ -272,6 +286,8 @@ if __name__ == "__main__":
         max_clip_length=MAX_CLIP_LENGTH)
     prompt, sample = generate(model, phone_prompt)
 
+    model.eval()
+
     try:
         out = generate_audio(
             sample,
@@ -286,5 +302,6 @@ if __name__ == "__main__":
         print("SAT_S, EAT_S:", SAT_S, EAT_S)
 
         print(out)
+
     except Exception as e:
         print("Failure generating audio:", e)
