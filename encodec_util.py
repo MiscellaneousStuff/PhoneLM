@@ -15,7 +15,7 @@ from encodec import EncodecModel
 from encodec.utils import convert_audio
 
 SAMPLE_RATE = 24_000
-BANDWIDTH = 6.0
+BANDWIDTH   = 1.5 # 6.0
 
 @cache
 def _load_model(bandwidth=6.0, device="cuda"):

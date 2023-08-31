@@ -39,8 +39,8 @@ CODEBOOKS         = [2, 4, 8, 16, 32]
 BANDWIDTHS        = [1.5, 3.0, 6.0, 12.0, 24.0]
 BANDWIDTH         = BANDWIDTHS[BANDWIDTH_IDX]
 CODEBOOK          = CODEBOOKS[BANDWIDTH_IDX]
-MAX_PROMPT_LENGTH = int(30 * 1.5)
 MAX_CLIP_LENGTH   = int(1.5)
+MAX_PROMPT_LENGTH = int(30 * MAX_CLIP_LENGTH)
 SEQ_LEN           = 512
 BATCH_SIZE        = 96 # 128 # 64
 
@@ -86,9 +86,9 @@ def multi_encode(
     Set `max_clip_length` to 0 for original clip length."""
 
     # Start text token, end text token, start audio token, end audio token
-    SAT, EAT = [n_phone_tokens + n_audio_tokens + i
+    ETT, EAT = [n_phone_tokens + n_audio_tokens + i
                 for i in range(2)]
-    SAT = torch.tensor([SAT]).long().cuda()
+    ETT = torch.tensor([ETT]).long().cuda()
     EAT = torch.tensor([EAT]).long().cuda()
 
     if max_clip_length > 0:
@@ -107,33 +107,32 @@ def multi_encode(
     device = torch.cuda.current_device()
     phone_tokens = phone_tokens.to(device)
     # phone_tokens = torch.cat((phone_tokens), dim=0).to(device)
-    audio_tokens = torch.cat((SAT, audio_tokens, EAT,), dim=0).to(device)
-    combined_tokens = torch.cat((phone_tokens, audio_tokens), dim=0).to(device)
+    audio_tokens = torch.cat((audio_tokens, EAT), dim=0).to(device)
+    combined_tokens = torch.cat((phone_tokens, ETT, audio_tokens), dim=0).to(device)
     return phone_tokens, audio_tokens, combined_tokens
 
 def generate_audio(sample,
                    n_phone_tokens,
                    n_audio_tokens,
                    audio_path="./out.wav"):
-    SAT, EAT = [n_phone_tokens + n_audio_tokens + i
-                for i in range(2)]
-    ST_S = [SAT, EAT]
-    print("SAT, EAT ids:", ST_S)
+    ETT, EAT = [n_phone_tokens + n_audio_tokens + i
+                          for i in range(2)]
+    ST_S = [ETT, EAT]
+    print("ETT, EAT ids:", ST_S)
     seq = sample.cpu().tolist()[0]
-    # print("seq:", seq)
+    print("seq:", seq)
     # all special tokens in list
     if all(st_t in seq for st_t in ST_S) and len(seq) >= len(ST_S) + 2:
-        # text_tokens  = seq[0:seq.index(SAT)]
-        audio_tokens = seq[seq.index(SAT)+1:seq.index(EAT)]
-        print(seq.index(SAT), seq.index(EAT), len(audio_tokens))
+        # text_tokens  = seq[seq.index(STT + 1):seq.index(ETT - 1)]
+        audio_tokens = seq[seq.index(ETT)+1:seq.index(EAT)]
+        print(seq.index(ETT), seq.index(EAT), len(audio_tokens))
         audio_tokens = torch.tensor(audio_tokens).cuda()
         audio_tokens = rearrange(
             audio_tokens,
-            '(q t) -> t q',
-            q=CODEBOOK,
-            t=audio_tokens.size(0) // CODEBOOK)
+            '(t q) -> t q',
+            q=1, # CODEBOOK,
+            t=audio_tokens.size(0) // 1) # t=audio_tokens.size(0) // CODEBOOK)
         print("audio_tokens.shape:", audio_tokens, audio_tokens.shape)
-        audio_tokens = torch.clamp(audio_tokens, min=0, max=1023)
         decode_to_file(audio_tokens, audio_path)
         return True
     else:
@@ -191,8 +190,8 @@ if __name__ == "__main__":
     indices = list(range(len(dataset)))
     train_indices, test_indices = train_test_split(indices, test_size=0.1, random_state=42)
 
-    train_sampler = SubsetRandomSampler(train_indices)
-    test_sampler = SubsetRandomSampler(test_indices)
+    train_sampler = SubsetRandomSampler([0]) # train_indices)
+    test_sampler = SubsetRandomSampler([0]) # test_indices)
 
     train_loader = DataLoader(
         dataset,
@@ -238,7 +237,7 @@ if __name__ == "__main__":
 
     scaler = GradScaler()
 
-    EPOCHS = 100 # 200 # 100 # 1000
+    EPOCHS = 1000 # 100 # 200 # 100 # 1000
     PRINT_INTERVAL = 100
 
     def train(model, trainloader):
@@ -294,12 +293,12 @@ if __name__ == "__main__":
             n_phone_tokens=len(dataset.phone_dict),
             n_audio_tokens=1024)
         
-        # STT, ETT, SAT, EAT ids: [1099, 1100, 1101, 1102]
+        # STT, ETT, ETT, EAT ids: [1099, 1100]
         values = sample.cpu().numpy()
-        SAT_S  = np.where(values == 1101)
-        EAT_S  = np.where(values == 1102)
+        ETT_S  = np.where(values == 1099)
+        EAT_S  = np.where(values == 1100)
 
-        print("SAT_S, EAT_S:", SAT_S, EAT_S)
+        print("ETT_S, EAT_S:", ETT_S, EAT_S)
 
         print(out)
 
