@@ -2,6 +2,12 @@
 
 ## About
 
+UPDATE UPDATE (04/09/2023): Model overfitting on single and multiple samples works.
+Generalisation seems to be harder. Probably because original MegaByte model from
+lucidrains trained to predict entire sequence from 1 token to n-1 tokens. Need to
+training method to only predict the response and not the token, otherwise the model
+is having to pointlessly learn to predict the prompt as well.
+
 UPDATE: Generalisation training seems some what promising. Model consistently outputs
 the correct number of audio tokens and can deal with the temporal context somewhat well.
 However, main issue seems to be more with the "spatial" component of predicting the sequence,
