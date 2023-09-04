@@ -71,9 +71,10 @@ class LJSPEECH(Dataset):
         with open(self._metadata_path, "r", newline="", encoding="utf-8") as metadata:
             flist = csv.reader(metadata, delimiter="|", quoting=csv.QUOTE_NONE)
             self._flist = list(flist)
-            self._flist = [item
-                           for item in self._flist
-                           if len(item[2]) <= max_prompt_length]
+            if max_prompt_length:
+                self._flist = [item
+                               for item in self._flist
+                               if len(item[2]) <= max_prompt_length]
             # if max_prompt_length:
             #     self._flist = [item
             #                    for item in self._flist
@@ -110,7 +111,9 @@ class LJSPEECH(Dataset):
         # G2P and Encodec
         phones    = encode_text_direct(normalized_transcript)
         phone_ids = torch.tensor(
-            [self.phone_dict.index(phone) for phone in phones]).long().cuda()
+            [self.phone_dict.index(phone)
+             if phone in self.phone_dict else 0
+             for phone in phones]).long().cuda()
         codes     = encode(waveform, sample_rate, self.encodec_bandwidth)
 
         return (

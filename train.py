@@ -18,6 +18,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.cuda.amp.grad_scaler import GradScaler
 
+import math
 import random
 import numpy as np
 
@@ -29,22 +30,31 @@ random.seed(SEED)
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
-MAX_LR       = 1e-3
-# MAX_LR       = 1e-2
-WEIGHT_DECAY = 1e-4
-GRAD_CLIP    = 0.1
+MAX_LR         = 1e-3 # 1e-3
+MIN_LR         = 1e-4
+# MAX_LR         = 1e-2
+WEIGHT_DECAY   = 1e-4
+GRAD_CLIP      = 0.1
+WARMUP_ITERS   = 500 # 500   # Taken from from MegaByte paper
+EPOCHS         = 100 # 100 # 200 # 100 # 1000
+PRINT_INTERVAL = 1
+SEQ_LEN        = 1024 # 512
+BATCH_SIZE     = 48 # 32 # 96 # 128 # 64
+DECAY_LR       = True
+NUM_BATCHES    = None # EPOCHS * # int(1e5)
 
 BANDWIDTH_IDX     = 0 # original VALL-E
 CODEBOOKS         = [2, 4, 8, 16, 32]
 BANDWIDTHS        = [1.5, 3.0, 6.0, 12.0, 24.0]
 BANDWIDTH         = BANDWIDTHS[BANDWIDTH_IDX]
 CODEBOOK          = CODEBOOKS[BANDWIDTH_IDX]
-MAX_CLIP_LENGTH   = int(1.5)
+MAX_CLIP_LENGTH   = int(5)
 MAX_PROMPT_LENGTH = int(30 * MAX_CLIP_LENGTH)
-SEQ_LEN           = 512
-BATCH_SIZE        = 96 # 128 # 64
+
+VALIDATE_EVERY    = 1
 
 AMP               = True
+SAVE              = True
 
 def get_reserved_mem_gb():
     device = torch.cuda.current_device()
@@ -52,15 +62,32 @@ def get_reserved_mem_gb():
     reserved_gb = reserved / 1024 / 1024 / 1024
     return reserved_gb
 
+# Taken from: https://github.com/karpathy/nanoGPT/blob/master/train.py
+# Learning rate decay scheduler (Cosine with Warmup)
+def get_lr(it):
+    # 1) Linear warmup for warmup_iters steps
+    if it < WARMUP_ITERS:
+        return MAX_LR * it / WARMUP_ITERS
+    
+    # 2) If it > lr_decay_iters, return min learning rate
+    if it > NUM_BATCHES:
+        return MIN_LR
+    
+    # 3) In between, use cosine decay down to min learning rate
+    decay_ratio = (it - WARMUP_ITERS) / (NUM_BATCHES - WARMUP_ITERS)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+    return MIN_LR + coeff * (MAX_LR - MIN_LR)
+
 class PhoneLM(nn.Module):
     def __init__(self, n_phone_tokens, n_audio_tokens):
         super(PhoneLM, self).__init__()
         self.megabyte   = megabyte.MEGABYTE(
-            heads       = 12, # 1,
+            heads       = 16, # 1,
             dim_head    = 64, # 16,
             num_tokens  = n_phone_tokens + n_audio_tokens + 4,
-            dim         = (768, 256, 128), # (32, 32, 32), # (768, 256, 128)# Dg, Dl1, Dl2
-            depth       = (12, 4, 2), # (6, 4, 2)
+            dim         = (1024, 256, 128), # (32, 32, 32), # (768, 256, 128)# Dg, Dl1, Dl2
+            depth       = (6, 4, 2), # (12, 4, 2), # (6, 4, 2)
             max_seq_len = (SEQ_LEN // 16, 4, 4), # (32, 4, 4), # (128, 4, 4), # (32, 4, 4), # 512
             flash_attn  = False)
 
@@ -190,8 +217,9 @@ if __name__ == "__main__":
     indices = list(range(len(dataset)))
     train_indices, test_indices = train_test_split(indices, test_size=0.1, random_state=42)
 
-    train_sampler = SubsetRandomSampler([0]) # train_indices)
-    test_sampler = SubsetRandomSampler([0]) # test_indices)
+    train_sampler = SubsetRandomSampler(train_indices)
+    test_sampler  = SubsetRandomSampler(test_indices)
+    eval_sampler  = SubsetRandomSampler(test_indices)
 
     train_loader = DataLoader(
         dataset,
@@ -200,14 +228,25 @@ if __name__ == "__main__":
         collate_fn=lambda batch: collate_fn(dataset, batch))
     test_loader = DataLoader(
         dataset,
+        batch_size=BATCH_SIZE,
+        sampler=test_sampler,
+        collate_fn=lambda batch: collate_fn(dataset, batch))
+    eval_loader = DataLoader(
+        dataset,
         batch_size=1,
         sampler=test_sampler,
         collate_fn=lambda batch: batch)
 
+    print("len(train_loader), len(test_loader):", len(train_loader), len(test_loader))
     device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = PhoneLM(
         n_phone_tokens=len(dataset.phone_dict),
         n_audio_tokens=1024).to(device)
+
+    best_val = float("inf")
+
+    NUM_BATCHES = EPOCHS * int(math.ceil(len(dataset) / BATCH_SIZE))
+    print("NUM_BATCHES:", NUM_BATCHES)
 
     # print("Model params:", model.megabyte.get_num_params())
 
@@ -237,9 +276,6 @@ if __name__ == "__main__":
 
     scaler = GradScaler()
 
-    EPOCHS = 1000 # 100 # 200 # 100 # 1000
-    PRINT_INTERVAL = 100
-
     def train(model, trainloader):
         model.train()
 
@@ -258,25 +294,63 @@ if __name__ == "__main__":
             # loss.backward()
             return loss
 
+    def test(model, test_loader, dataset):
+        model.eval()
+
+        batch = next(iter(test_loader))
+        with torch.no_grad():
+            loss = model(batch, return_loss = True)
+            return loss
+        
     pbar = tqdm(range(EPOCHS), mininterval=10., desc='training')
+    batch_idx = 0
     for i in pbar:
+        mem_gb = get_reserved_mem_gb()
+
+        lr = get_lr(batch_idx) if DECAY_LR else MAX_LR
+
         for b in range(len(train_loader)):
+            # Set LR
+            lr = get_lr(batch_idx) if DECAY_LR else MAX_LR
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+
             loss = train(model, train_loader)
-            # optimizer.step()
-            # optimizer.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-        mem_gb = get_reserved_mem_gb()
-        if i % PRINT_INTERVAL == 0:
-            print(f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}")
-        pbar.set_description(f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}")
+            batch_idx += 1
+            pbar.set_description(
+                f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}, lr: {lr}, batch: {b}/{len(train_loader)}")
 
-    item = next(iter(test_loader))[0]
+        # Validate every `n` steps (because it's time consuming)
+        if i % VALIDATE_EVERY == 0:
+            vloss = test(model, test_loader, dataset)
+            print(f'validation loss: {vloss.item()}')
+            pbar.set_description(
+                f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}, vloss: {vloss.item()}, lr: {lr}")
+
+        # Save best model every `n` steps. Set this to be high as the models are huge
+        if vloss < best_val:
+            best_val = vloss
+            if SAVE:
+                torch.save(
+                    model.state_dict(),
+                    f"./megabyte_{i}_{vloss}.pt")
+                torch.save(
+                    optimizer.state_dict(),
+                    f"./megabyte_{i}_{vloss}_optim.pt")
+                    
+        if i % PRINT_INTERVAL == 0:
+            print(f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}, lr: {lr}")
+        pbar.set_description(f"Reserved Memory (GB): {mem_gb}, loss: {loss.item()}, lr: {lr}")
+
+    item = next(iter(eval_loader))[0] # [0]
     # print("item.shape:", item.shape)
     print("Generative Prompt:", item[-4])
     item_phone_tokens = item[-2]
     item_audio_tokens = item[-1]
+    # print("Item, Aud, Phone:", item_phone_tokens, item_audio_tokens)
     phone_prompt, _, _ = multi_encode(
         item_phone_tokens,
         item_audio_tokens,
@@ -293,7 +367,7 @@ if __name__ == "__main__":
             n_phone_tokens=len(dataset.phone_dict),
             n_audio_tokens=1024)
         
-        # STT, ETT, ETT, EAT ids: [1099, 1100]
+        # ETT, EAT ids: [1099, 1100]
         values = sample.cpu().numpy()
         ETT_S  = np.where(values == 1099)
         EAT_S  = np.where(values == 1100)
